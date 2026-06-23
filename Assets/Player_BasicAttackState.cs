@@ -3,17 +3,19 @@ using UnityEngine;
 public class Player_BasicAttackState : EntityState
 {
     private float attackVelocityTimer;
+    private float lastTimeAttacked;
 
-    private const int FirstComboIndex = 1;
+    private bool comboAttackQueued;
+    private int attackDir;
     private int comboIndex = 1;
     private int comboLimit = 3;
-    private float lastTimeAttacked;
+    private const int FirstComboIndex = 1;
 
     public Player_BasicAttackState(Player player, StateMachine stateMachine, string animBoolName) : base(player, stateMachine, animBoolName)
     {
         if (comboLimit != player.attackVelocity.Length)
         {
-            Debug.LogWarning("I've adjusted combo limit, according to attack velocity array!");
+            Debug.LogWarning("Adjusted combo limit to match attack velocity array!");
             comboLimit = player.attackVelocity.Length;
         }
     }
@@ -22,7 +24,10 @@ public class Player_BasicAttackState : EntityState
     {
         base.Enter();
 
+        comboAttackQueued = false;
         ResetComboIndexIfNeeded();
+
+        attackDir = player.moveInput.x != 0f ? ((int)player.moveInput.x) : player.facingDir;
 
         anim.SetInteger("basicAttackIndex", comboIndex);
         ApplyAttackVelocity();
@@ -34,9 +39,14 @@ public class Player_BasicAttackState : EntityState
 
         HandleAttackVelocity();
 
+        if (input.Player.Attack.WasPressedThisFrame())
+        {
+            QueueNextAttack();
+        }
+
         if (triggerCalled)
         {
-            stateMachine.ChangeState(player.idleState);
+            HandleStateExit();
         }
     }
 
@@ -46,6 +56,27 @@ public class Player_BasicAttackState : EntityState
 
         comboIndex++;
         lastTimeAttacked = Time.time;
+    }
+
+    private void HandleStateExit()
+    {
+        if (comboAttackQueued)
+        {
+            anim.SetBool(animBoolName, false);
+            player.EnterAttackStateWithDelay();
+        }
+        else
+        {
+            stateMachine.ChangeState(player.idleState);
+        }
+    }
+
+    private void QueueNextAttack()
+    {
+        if (comboIndex < comboLimit)
+        {
+            comboAttackQueued = true;
+        }
     }
 
     private void HandleAttackVelocity()
